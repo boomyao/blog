@@ -1,0 +1,16 @@
+{
+  "name": "issue-blog",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@actions/github": "^5.1.1",
+    "openai": "^3.3.0"
+  }
+}
