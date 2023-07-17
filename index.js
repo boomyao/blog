@@ -1,13 +1,17 @@
-const openai = require('openai');
 const fetch = require('node-fetch');
 const regex = /\d+[\.\)] /g;
 const github = require('@actions/github');
+const { Configuration, OpenAIApi } = require("openai");
 
-openai.apiKey = process.env.OPENAI_API_KEY;
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+
 const githubToken = process.env.GITHUB_TOKEN;
 
 async function getChatResponse(prompt) {
-    const response = await openai.ChatCompletion.create({
+    const response = await openai.createChatCompletion({
         model: "gpt-3.5-turbo-0613",
         temperature: 0.92,
         messages: [
@@ -16,7 +20,7 @@ async function getChatResponse(prompt) {
         ],
     });
 
-    return response['choices'][0]['message']['content'];
+    return response.data.choices[0].message.content;
 }
 
 async function splitNumberedString(inputString) {
@@ -30,7 +34,7 @@ async function splitNumberedString(inputString) {
 }
 
 async function getQuestionCommentBatch(article) {
-    const count = random.int(2, 5);
+    const count = random(2, 5);
 
     const prompt = `假设您是一位擅于思考的人，您总能从不同角度提出富含深度的问题。
 
@@ -43,16 +47,15 @@ async function getQuestionCommentBatch(article) {
     return await splitNumberedString(comments);
 }
 
-// Similar functions for getIdeaCommentBatch, getErrorComment, getEncourageCommentBatch
 async function getIdeaCommentBatch(article) {
-    const count = random.int(2, 5);
+    const count = random(2, 5);
 
     const prompt = `假设您是一名十分擅于思考的百事通，您总是能在别人的观点之上延伸出更多想法。
 
     这是我的文章：
     ${article}
 
-    现在允许每个人提出{count}个想法，您阅读过后提出了{count}个跳跃性的且颇具深度的想法，并用数字序号分隔开, 您说到：`;
+    现在允许每个人提出${count}个想法，您阅读过后提出了${count}个跳跃性的且颇具深度的想法，并用数字序号分隔开, 您说到：`;
 
     const comments = await getChatResponse(prompt);
     return await splitNumberedString(comments);
@@ -71,22 +74,22 @@ async function getErrorComment(article) {
 }
 
 async function getEncourageCommentBatch(article) {
-    const count = random.int(2, 5);
+    const count = random(2, 5);
 
     const prompt = `假设您是一名慧眼识珠的伯乐，擅长给予别人肯定以表示鼓励。
 
     这是我的文章：
     ${article}
 
-    您阅读完后，针对我的思考给予了{count}点赞扬，并用数字序号分隔开，您用口语化的语气说到：`;
+    您阅读完后，针对我的思考给予了${count}点赞扬，并用数字序号分隔开，您用口语化的语气说到：`;
 
     const comments = await getChatResponse(prompt);
     return await splitNumberedString(comments);
 }
 
 function isArticle() {
-    const context = github.context
-    return context.eventName === 'issues' && context.payload.action === 'opened' && context.payload.issue.labels.some(label => label.name === 'article')
+    const { payload } = github.context
+    return payload.issue && payload.action === 'opened' && payload.issue.labels.some(label => label.name === 'article')
 }
 
 // main
@@ -134,7 +137,7 @@ async function postComments(comments) {
     const { number } = context.issue
 
     for (let content, i = 0; content = comments[i++];) {
-        await octokit.issues.createComment({
+        await octokit.rest.issues.createComment({
             owner,
             repo,
             issue_number: number,
@@ -150,4 +153,15 @@ function shuffleList(list) {
     }
 }
 
-main().catch(e => console.error(e));
+function random(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// main().then(() => {
+//     process.exit();
+//   }).catch((error) => {
+//     console.error(error);
+//     process.exit(1);
+//   });
+
+postComments(['test1', 'test2', 'test3'])
