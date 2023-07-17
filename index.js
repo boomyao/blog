@@ -157,11 +157,9 @@ function random(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// main().then(() => {
-//     process.exit();
-//   }).catch((error) => {
-//     console.error(error);
-//     process.exit(1);
-//   });
-
-postComments(['test1', 'test2', 'test3'])
+main().then(() => {
+    process.exit();
+  }).catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
