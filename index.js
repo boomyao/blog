@@ -108,7 +108,7 @@ async function getEncourageCommentBatch(article, language = "English") {
 async function replyToComment(article, history) {
     const messages = [
         { role: "user", content: `This is article:\n${article}` },
-        { role: "user", content: "你有什么问题或想法和建议吗？"},
+        { role: "user", content: "Do you have any questions, ideas, or suggestions?"},
         ...history
     ]
     const response = await getChatResponse(messages);

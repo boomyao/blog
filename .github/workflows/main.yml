@@ -3,6 +3,8 @@ name: comment-on-issue
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
