@@ -17,13 +17,19 @@ OPENAI_API_KEY: [token](https://platform.openai.com/account/api-keys)
 
 ### Variables
 
-COMMENT_CONFIG
+COMMENT_CONFIG: json
+
+example:
 
 ``` json
 {
-    "critical": { "min": number, "max": number }, // reader with critical thinking
-    "questioner": { "min": number, "max": number }, // Readers who ask questions
-    "encourager": { "min": number, "max": number }, // Encourager
-    "writing_guide": boolean // Whether to use writing guide
+    "critical": { "min": 2, "max": 5 },
+    "questioner": { "min": 2, "max": 4 },
+    "encourager": { "min": 1, "max": 2 },
+    "writing_guide": true
 }
 ```
+`critical`: reader with critical thinking
+`questioner`: readers who ask questions
+`encourager`: encourager
+`writing_guide`: whether to use writing guide
