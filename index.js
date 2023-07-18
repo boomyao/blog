@@ -7,7 +7,7 @@ const {
     replyToComment,
     getCriticalCommentBatch,
 } = require('./comment');
-const { shuffleList } = require('./utils');
+const { shuffleList, formatQuoteComments, createQuoteComment, getRoleByLevel } = require('./utils');
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
