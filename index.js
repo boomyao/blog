@@ -1,5 +1,3 @@
-const fetch = require('node-fetch');
-const regex = /\d+[\.\)] /g;
 const github = require('@actions/github');
 const { Configuration, OpenAIApi } = require("openai");
 
@@ -8,12 +6,20 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
-const githubToken = process.env.GITHUB_TOKEN;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
-async function getChatResponse(prompt) {
+const ModelEnumMap = {
+    BASIC: "gpt-3.5-turbo-0613",
+    LONG: "gpt-3.5-turbo-16k-0613",
+    PRO: "gpt-4-0613",
+    MAX: "gpt-4-32k-0613",
+}
+
+async function getChatResponse(prompt, options = {}) {
+    options = { temperature: 0.92, model: ModelEnumMap.BASIC, ...options };
     const response = await openai.createChatCompletion({
-        model: "gpt-3.5-turbo-0613",
-        temperature: 0.92,
+        model: options.model,
+        temperature: options.temperature,
         messages: [
             { role: "system", content: "You are a helpful assistant" },
             { role: "user", content: prompt },
@@ -23,65 +29,76 @@ async function getChatResponse(prompt) {
     return response.data.choices[0].message.content;
 }
 
+async function getContentLanguage(content) {
+    // shorten the content
+    content = content.substring(0, 50);
+    const prompt = `What language is this content written in?\n\n${content}\n\nJust tell me the language name.\nLanguage name:`;
+    const result = await getChatResponse(prompt, { temperature: 0 });
+    return result;
+}
+
 async function splitNumberedString(inputString) {
-    const inputList = inputString.split('\n+');
+    const inputList = inputString.split(/\n+/);
     
     const outputList = inputList.map(item => {
-        return item.replace(regex, "").trim();
+        return item.replace(/\d+[\.\)] /g, "").trim();
     });
 
     return outputList.filter(item => item !== "");
 }
 
-async function getQuestionCommentBatch(article) {
+async function getQuestionCommentBatch(article, language = "English") {
     const count = random(2, 5);
 
-    const prompt = `假设您是一位擅于思考的人，您总能从不同角度提出富含深度的问题。
+    const prompt = `Assuming you are a person skilled at thinking, you are always able to pose thought-provoking questions from various perspectives.
+    My native language is ${language}.
 
-    这是我的文章：
+    This is my article:
     ${article}
 
-    现在允许每个人提出${count}个问题，您阅读过后提出了${count}个天马行空的问题，并用数字序号分隔开，您问到：`;
+    Now everyone is allowed to ask ${count} questions. After reading, you came up with ${count} imaginative questions, separated by numerical indices. Here are the questions you asked with ${language}:`;
 
     const comments = await getChatResponse(prompt);
     return await splitNumberedString(comments);
 }
 
-async function getIdeaCommentBatch(article) {
+async function getIdeaCommentBatch(article, language = "English") {
     const count = random(2, 5);
 
-    const prompt = `假设您是一名十分擅于思考的百事通，您总是能在别人的观点之上延伸出更多想法。
+    const prompt = `Assuming you are a highly thoughtful polymath, you always manage to extrapolate more ideas beyond others' perspectives.
+    My native language is ${language}.
 
-    这是我的文章：
+    This is my article:
     ${article}
 
-    现在允许每个人提出${count}个想法，您阅读过后提出了${count}个跳跃性的且颇具深度的想法，并用数字序号分隔开, 您说到：`;
-
+    Now everyone is allowed to present ${count} ideas. After reading them, you have put forward ${count} unconventional and profound ideas, separated by numerical sequence. You said with ${language}:`;
     const comments = await getChatResponse(prompt);
     return await splitNumberedString(comments);
 }
 
-async function getErrorComment(article) {
-    const prompt = `假设您是一名语言专家，您擅长发现文章里的语言表达和语法问题。
+async function getErrorComment(article, language = "English") {
+    const prompt = `Suppose you are a language expert who excels in guiding others to write better articles.
+    I and your native language are both ${language}.
 
-    这是我的文章：
+    This is my article:
     ${article}
 
-    您阅读完后提出了内容里的一些问题和其整体需要改进的地方，并告诉我改正优化的方案及原因，您说到：`;
+    After reading through the article, you raised some questions and pointed out areas that need improvement. You also provided suggestions and reasons for correcting. You said with ${language}:`;
 
     const comments = await getChatResponse(prompt);
     return comments;
 }
 
-async function getEncourageCommentBatch(article) {
-    const count = random(2, 5);
+async function getEncourageCommentBatch(article, language = "English") {
+    const count = random(2, 3);
 
-    const prompt = `假设您是一名慧眼识珠的伯乐，擅长给予别人肯定以表示鼓励。
+    const prompt = `Assuming you are a discerning talent spotter, adept at giving others affirmation as a means of encouragement.
+    I and your native language are both ${language}.
 
-    这是我的文章：
+    This is my article:
     ${article}
 
-    您阅读完后，针对我的思考给予了${count}点赞扬，并用数字序号分隔开，您用口语化的语气说到：`;
+    After reading, you gave ${count} compliments about my thoughts, separating them with numerical indicators. You expressed them in ${language} and In an informal tone, you said:`;
 
     const comments = await getChatResponse(prompt);
     return await splitNumberedString(comments);
@@ -97,14 +114,16 @@ async function main() {
     const context = github.context
 
     if (isArticle()) {
+        const { body, title } = context.payload.issue;
+        const article = `${title}\n${body}`;
 
-        const article = context.issue.body;
+        const language = await getContentLanguage(article);
 
         const results = await Promise.all([
-            getErrorComment(article),
-            getQuestionCommentBatch(article),
-            getIdeaCommentBatch(article),
-            getEncourageCommentBatch(article)
+            getErrorComment(article, language),
+            getQuestionCommentBatch(article, language),
+            getIdeaCommentBatch(article, language),
+            getEncourageCommentBatch(article, language)
         ]);
 
         const comments = [results[0], ...results[1], ...results[2], ...results[3]];
@@ -112,26 +131,11 @@ async function main() {
         shuffleList(comments);
 
         await postComments(comments);
-
-        const url = event['issue']['comments_url'];
-        const headers = {
-            'Authorization': `token ${githubToken}`,
-            'Accept': 'application/vnd.github.v3+json',
-        };
-
-        for (let content of comments) {
-            const data = { 'body': content };
-            const response = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(data) });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-        }
     }
 }
 
 async function postComments(comments) {
-    const octokit = github.getOctokit(githubToken)
+    const octokit = github.getOctokit(GITHUB_TOKEN)
     const context = github.context
     const { owner, repo } = context.repo
     const { number } = context.issue
