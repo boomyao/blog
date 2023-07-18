@@ -10,7 +10,7 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 const ModelEnumMap = {
     BASIC: "gpt-3.5-turbo-0613",
-    LONG: "gpt-3.5-turbo-16k-0613",
+    PLUS: "gpt-3.5-turbo-16k-0613",
     PRO: "gpt-4-0613",
     MAX: "gpt-4-32k-0613",
 }
@@ -18,6 +18,12 @@ const ModelEnumMap = {
 async function getChatResponse(prompt, options = {}) {
     options = { temperature: 0.92, model: ModelEnumMap.BASIC, ...options };
     const messages = Array.isArray(prompt) ? prompt : [{ role: "user", content: prompt }];
+
+    // choose model
+    if (JSON.stringify(messages).length > 4096) {
+        options.model = ModelEnumMap.PLUS;
+    }
+
     const response = await openai.createChatCompletion({
         model: options.model,
         temperature: options.temperature,
@@ -91,7 +97,7 @@ async function getErrorComment(article, language = "English") {
 }
 
 async function getEncourageCommentBatch(article, language = "English") {
-    const count = random(2, 3);
+    const count = random(1, 2);
 
     const prompt = `Assuming you are a discerning talent spotter, adept at giving others affirmation as a means of encouragement.
     I and your native language are both ${language}.
