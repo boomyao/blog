@@ -29,7 +29,7 @@ example:
     "writing_guide": true
 }
 ```
-`critical`: reader with critical thinking
-`questioner`: readers who ask questions
-`encourager`: encourager
-`writing_guide`: whether to use writing guide
+- `critical`: reader with critical thinking
+- `questioner`: readers who ask questions
+- `encourager`: encourager
+- `writing_guide`: whether to use writing guide
