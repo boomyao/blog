@@ -17,12 +17,13 @@ const ModelEnumMap = {
 
 async function getChatResponse(prompt, options = {}) {
     options = { temperature: 0.92, model: ModelEnumMap.BASIC, ...options };
+    const messages = Array.isArray(prompt) ? prompt : [{ role: "user", content: prompt }];
     const response = await openai.createChatCompletion({
         model: options.model,
         temperature: options.temperature,
         messages: [
             { role: "system", content: "You are a helpful assistant" },
-            { role: "user", content: prompt },
+            ...messages,
         ],
     });
 
@@ -104,34 +105,24 @@ async function getEncourageCommentBatch(article, language = "English") {
     return await splitNumberedString(comments);
 }
 
+async function replyToComment(article, history) {
+    const messages = [
+        { role: "user", content: `This is article:\n${article}` },
+        { role: "user", content: "你有什么问题或想法和建议吗？"},
+        ...history
+    ]
+    const response = await getChatResponse(messages);
+    return response;
+}
+
 function isArticle() {
     const { payload } = github.context
     return payload.issue && payload.action === 'opened' && payload.issue.labels.some(label => label.name === 'article')
 }
 
-// main
-async function main() {
-    const context = github.context
-
-    if (isArticle()) {
-        const { body, title } = context.payload.issue;
-        const article = `${title}\n${body}`;
-
-        const language = await getContentLanguage(article);
-
-        const results = await Promise.all([
-            getErrorComment(article, language),
-            getQuestionCommentBatch(article, language),
-            getIdeaCommentBatch(article, language),
-            getEncourageCommentBatch(article, language)
-        ]);
-
-        const comments = [results[0], ...results[1], ...results[2], ...results[3]];
-
-        shuffleList(comments);
-
-        await postComments(comments);
-    }
+function isComment() {
+    const { payload } = github.context
+    return payload.action === 'created' && payload.comment?.author_association === 'OWNER'
 }
 
 async function postComments(comments) {
@@ -159,6 +150,81 @@ function shuffleList(list) {
 
 function random(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function formatQuoteComments(issueText) {
+    const lines = issueText.split('\r\n');
+    
+    const result = [];
+
+    lines.forEach(line => {
+        const parts = line.split(' ');
+
+        // calculate the number of ">" in the beginning of the line
+        const level = parts.reduce((count, part) => part === '>' ? count + 1 : count, 0);
+
+        // remove all ">" in the beginning of the line
+        const text = parts.filter(part => part !== '>' && part !== '').join(' ').trim();
+
+        // only add the line if it is not empty
+        if (text) {
+            result.push({
+                level,
+                text
+            });
+        }
+    });
+
+    return result;
+}
+
+function createQuoteComment(originalComment, replyText) {
+    const quotedComment = originalComment.split('\r\n').map(line => line ? '> ' + line : '>').join('\r\n');
+    
+    const fullComment = `${quotedComment}\r\n\r\n${replyText}`;
+
+    return fullComment;
+}
+
+function getRoleByLevel(level) {
+    if (level % 2 === 0) {
+        return 'user'
+    } else {
+        return 'assistant'
+    }
+}
+
+// main
+async function main() {
+    const context = github.context
+
+    if (isArticle()) {
+        const { body, title } = context.payload.issue;
+        const article = `${title}\n${body}`;
+
+        const language = await getContentLanguage(article);
+
+        const results = await Promise.all([
+            getErrorComment(article, language),
+            getQuestionCommentBatch(article, language),
+            getIdeaCommentBatch(article, language),
+            getEncourageCommentBatch(article, language)
+        ]);
+
+        const comments = [results[0], ...results[1], ...results[2], ...results[3]];
+
+        shuffleList(comments);
+
+        await postComments(comments);
+    } else if (isComment()) {
+        const { issue, comment } = context.payload;
+        const article = `${issue.title}\n${issue.body}`;
+        const comments = formatQuoteComments(comment.body);
+        const history = comments.map(comment => ({ role: getRoleByLevel(comment.level), content: comment.text }));
+        const response = await replyToComment(article, history);
+        const replyText = createQuoteComment(comment.body, response);
+        await postComments([replyText]);
+    }
 }
 
 main().then(() => {
